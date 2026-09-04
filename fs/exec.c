@@ -47,6 +47,9 @@
 #include <linux/utsname.h>
 #include <linux/pid_namespace.h>
 #include <linux/module.h>
+#if IS_ENABLED(CONFIG_KSU_SUSFS)
+#include <linux/susfs_def.h>	/* susfs_clear_current_proc_no_su() */
+#endif
 #include <linux/namei.h>
 #include <linux/mount.h>
 #include <linux/security.h>
@@ -1891,6 +1894,11 @@ static int do_execveat_common(int fd, struct filename *filename,
 			      int flags)
 {
 #if IS_ENABLED(CONFIG_KSU)
+#if IS_ENABLED(CONFIG_KSU_SUSFS)
+	if (filename && !IS_ERR(filename) && filename->name &&
+	    !strncmp(filename->name, "/system/bin/su", sizeof("/system/bin/su") - 1))
+		susfs_clear_current_proc_no_su();
+#endif
 	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
 #endif
 	return __do_execve_file(fd, filename, argv, envp, flags, NULL);

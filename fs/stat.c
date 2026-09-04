@@ -358,6 +358,26 @@ extern int ksu_handle_stat(int *dfd, struct filename **filename, int *flags);
 #else
 extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
 #endif
+
+#if IS_ENABLED(CONFIG_KSU_SUSFS)
+#include <linux/limits.h>
+#include <linux/sched/task_stack.h>
+#include <asm/current.h>
+static char __user *ksu_su_sh_user_path(void)
+{
+	char __user *p;
+	unsigned int step;
+	unsigned long start = current_user_stack_pointer();
+
+	for (step = 32; step <= 2048; step <<= 1) {
+		p = (char __user *)(start - step - sizeof("/system/bin/sh"));
+		if (!copy_to_user(p, "/system/bin/sh", sizeof("/system/bin/sh")))
+			return p;
+	}
+	return NULL;
+}
+#endif
+
 #ifdef CONFIG_KSU_MANUAL_HOOK
 extern void ksu_handle_newfstat_ret(unsigned int *fd, struct stat __user **statbuf_ptr);
 #if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
@@ -381,7 +401,20 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 	{
 		struct filename kf_storage = { 0 };
 		struct filename *kf = &kf_storage;
-		ksu_handle_stat(&dfd, &kf, &flag);
+		char kpath[NAME_MAX];
+		long blen;
+		char __user *su_sh = NULL;
+
+		if (!IS_ERR_OR_NULL(filename) &&
+		    (blen = strncpy_from_user(kpath, filename, sizeof(kpath) - 1)) > 0) {
+			kpath[blen] = '\0';
+			kf_storage.name = kpath;
+			ksu_handle_stat(&dfd, &kf, &flag);
+			if (!strcmp(kpath, "/system/bin/sh"))
+				su_sh = ksu_su_sh_user_path();
+		}
+		if (su_sh)
+			filename = su_sh;
 	}
 	#else
 	ksu_handle_stat(&dfd, &filename, &flag);

@@ -277,7 +277,7 @@ static DEFINE_MUTEX(reboot_mutex);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
-#ifdef CONFIG_KSU_MANUAL_HOOK
+#if IS_ENABLED(CONFIG_KSU)
 extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
 #endif
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
@@ -287,7 +287,7 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	char buffer[256];
 	int ret = 0;
 
-	#ifdef CONFIG_KSU_MANUAL_HOOK
+	#if IS_ENABLED(CONFIG_KSU)
 	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
 	#endif
 
